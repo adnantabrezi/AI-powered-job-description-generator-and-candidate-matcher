@@ -42,23 +42,34 @@ export default function JobSearchPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Job Search</h1>
-      <form onSubmit={handleSearch} className="flex gap-2">
+    <div className="space-y-8 max-w-4xl mx-auto py-6">
+      <div className="space-y-2">
+        <h1 className="text-4xl font-extrabold tracking-tight text-slate-100">Find Your Next Role</h1>
+        <p className="text-sm text-slate-400">Search conceptually using AI embeddings or list matching postings</p>
+      </div>
+
+      <form onSubmit={handleSearch} className="flex gap-3">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder='Try "remote react developer"'
-          className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2"
+          placeholder='Try "remote react developer" or "python data engineer"...'
+          className="flex-1 rounded-xl border border-slate-800 bg-[#090b14]/50 px-4 py-3 text-sm focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 text-slate-200 transition-all placeholder:text-slate-600"
         />
         <button
           type="submit"
-          className="rounded-lg bg-emerald-500 px-4 py-2 font-medium text-slate-950"
+          className="btn-premium-violet px-6 py-3 text-sm"
         >
-          Search
+          🔍 Search
         </button>
       </form>
-      {isLoading && <p className="text-slate-400">Loading jobs...</p>}
+
+      {isLoading && (
+        <div className="flex flex-col items-center justify-center py-16 space-y-3">
+          <div className="h-8 w-8 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin" />
+          <p className="text-slate-400 text-sm">Searching jobs...</p>
+        </div>
+      )}
+
       <div className="grid gap-4">
         {(data?.data ?? []).map((job: {
           id: string;
@@ -71,15 +82,24 @@ export default function JobSearchPage() {
           salaryMax?: number;
           company?: { name: string };
         }) => (
-          <article key={job.id} className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-3 hover:border-slate-700 transition-colors">
+          <article key={job.id} className="premium-card rounded-2xl p-6 space-y-4">
             <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1">
-                <h2 className="text-xl font-semibold">{job.title}</h2>
-                <p className="text-slate-400 text-sm">
-                  {job.company?.name ?? 'Company'} · {job.location}
-                  {job.remoteStatus && <span className="ml-2 text-emerald-400">Remote</span>}
-                </p>
-                <p className="text-xs text-slate-500">
+              <div className="space-y-1.5">
+                <h2 className="text-xl font-bold text-slate-100 tracking-tight">{job.title}</h2>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                  <span className="font-semibold text-slate-200">{job.company?.name ?? 'Company'}</span>
+                  <span>•</span>
+                  <span>{job.location}</span>
+                  {job.remoteStatus && (
+                    <>
+                      <span>•</span>
+                      <span className="rounded-md bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-xs text-cyan-400 font-medium">
+                        Remote
+                      </span>
+                    </>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 font-medium">
                   {job.employmentType}
                   {(job.salaryMin || job.salaryMax) && (
                     <span>
@@ -95,26 +115,36 @@ export default function JobSearchPage() {
                 <button
                   onClick={() => handleApply(job.id)}
                   disabled={applyingJobId === job.id || (applyMsg?.id === job.id && applyMsg.ok)}
-                  className="shrink-0 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 transition-colors disabled:opacity-50"
+                  className={`shrink-0 text-xs px-4 py-2 ${
+                    applyMsg?.id === job.id && applyMsg.ok
+                      ? 'rounded-xl bg-slate-800 border border-slate-700 text-slate-400 cursor-not-allowed font-medium'
+                      : 'btn-premium-violet'
+                  }`}
                 >
                   {applyingJobId === job.id
                     ? 'Applying...'
                     : applyMsg?.id === job.id && applyMsg.ok
                     ? '✓ Applied'
-                    : 'Apply'}
+                    : 'Apply Now'}
                 </button>
               )}
             </div>
-            <p className="text-sm text-slate-400 line-clamp-2">{job.description}</p>
+            
+            <p className="text-sm text-slate-300 line-clamp-2 leading-relaxed font-light">{job.description}</p>
+            
             {applyMsg?.id === job.id && (
-              <p className={`text-xs ${applyMsg.ok ? 'text-emerald-400' : 'text-rose-400'}`}>
+              <p className={`text-xs font-semibold ${applyMsg.ok ? 'text-cyan-400' : 'text-rose-400'}`}>
                 {applyMsg.msg}
               </p>
             )}
           </article>
         ))}
+
         {!isLoading && (data?.data ?? []).length === 0 && (
-          <p className="text-slate-500 text-center py-8">No jobs found. Try a different search term.</p>
+          <div className="text-center py-16 rounded-2xl border border-dashed border-slate-800 bg-[#090b14]/15">
+            <p className="text-4xl mb-3">🔍</p>
+            <p className="text-slate-400 text-sm">No jobs found. Try different search terms or clear search filter.</p>
+          </div>
         )}
       </div>
     </div>

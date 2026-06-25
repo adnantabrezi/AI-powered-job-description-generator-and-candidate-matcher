@@ -14,60 +14,40 @@ class LMStudioProvider {
             apiKey: env_1.ENV.AI_API_KEY,
         });
     }
+    async chatJSON(system, user) {
+        const response = await this.client.chat.completions.create({
+            model: env_1.ENV.AI_MODEL,
+            messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: user },
+            ],
+        }, { timeout: 15000 });
+        const content = response.choices[0].message.content || '{}';
+        return cleanAndParseJSON(content);
+    }
     async generateEmbedding(text) {
         const response = await this.client.embeddings.create({
             model: env_1.ENV.AI_EMBEDDING_MODEL,
             input: text.slice(0, 8000),
-        }, {
-            timeout: 3000,
-        });
+        }, { timeout: 3000 });
         return response.data[0].embedding;
     }
     async extractSkills(text) {
-        const response = await this.client.chat.completions.create({
-            model: env_1.ENV.AI_MODEL,
-            messages: [
-                {
-                    role: 'system',
-                    content: 'Extract technical skills. Return JSON: {"skills":["React","TypeScript"]}',
-                },
-                { role: 'user', content: text.slice(0, 6000) },
-            ],
-        }, {
-            timeout: 10000,
-        });
-        const content = response.choices[0].message.content || '{"skills":[]}';
         try {
-            const parsed = cleanAndParseJSON(content);
-            return Array.isArray(parsed.skills) ? parsed.skills : [];
+            const result = await this.chatJSON('Extract technical skills. Return JSON: {"skills":["React","TypeScript"]}', text.slice(0, 6000));
+            return Array.isArray(result.skills) ? result.skills : [];
         }
         catch (e) {
-            console.error('Failed to parse skills JSON:', content);
+            console.error('Failed to parse skills JSON:', e);
             return [];
         }
     }
     async matchCandidateToJob(candidateText, jobText) {
-        const response = await this.client.chat.completions.create({
-            model: env_1.ENV.AI_MODEL,
-            messages: [
-                {
-                    role: 'system',
-                    content: 'Analyze candidate-job fit. Return JSON: {"score":0-100,"reason":"explanation"}',
-                },
-                {
-                    role: 'user',
-                    content: `Resume:\n${candidateText.slice(0, 3000)}\n\nJob:\n${jobText.slice(0, 3000)}`,
-                },
-            ],
-        }, {
-            timeout: 10000,
-        });
-        const content = response.choices[0].message.content || '{"score":0,"reason":"Unavailable"}';
         try {
-            return cleanAndParseJSON(content);
+            return await this.chatJSON('Analyze candidate-job fit. Return JSON: {"score":0-100,"reason":"explanation"}', `Resume:\n${candidateText.slice(0, 3000)}\n\nJob:\n${jobText.slice(0, 3000)}`);
         }
         catch (e) {
-            console.error('Failed to parse match result JSON:', content);
+            console.error('Failed to parse match result JSON:', e);
             return { score: 0, reason: 'Failed to parse AI output' };
         }
     }
@@ -105,6 +85,32 @@ class LMStudioProvider {
         const result = await this.matchCandidateToJob(text, jobText);
         return result.score;
     }
+    // ── New interface methods ──
+    async generateJobDescription(input) {
+        return this.chatJSON('Generate a complete job description. Return JSON: {"description":"full markdown JD","technicalSkills":[],"softSkills":[],"benefits":[],"requirements":[]}', `Title: ${input.title}\nResponsibilities: ${input.responsibilities.join('; ')}\nSkills: ${input.requiredSkills.join(', ')}\nCulture: ${input.companyCulture || 'Not specified'}`);
+    }
+    async generateInterviewQuestions(jobText, role) {
+        const result = await this.chatJSON('Generate interview questions. Return JSON: {"questions":[{"category":"TECHNICAL"|"BEHAVIORAL"|"CULTURE_FIT","question":"...","guideline":"..."}]}', `Role: ${role}\nJob:\n${jobText.slice(0, 4000)}`);
+        return Array.isArray(result.questions) ? result.questions : [];
+    }
+    async analyzeSalary(title, location, skills, experienceYears, salaryMin, salaryMax) {
+        return this.chatJSON('Analyze market salary. Return JSON: {"estimatedMin":number,"estimatedMedian":number,"estimatedMax":number,"inputComparison":"BELOW_MARKET"|"AT_MARKET"|"ABOVE_MARKET","confidence":"HIGH"|"MEDIUM"|"LOW","factors":[],"summary":"..."}', `Title: ${title}\nLocation: ${location}\nSkills: ${skills.join(', ')}\nExperience: ${experienceYears ?? 'N/A'} years\n${salaryMin || salaryMax ? `Proposed: $${salaryMin}-$${salaryMax}` : ''}`);
+    }
+    async generateCandidateSummary(resumeText, jobText, matchedSkills, missingSkills) {
+        return this.chatJSON('Analyze candidate fit. Return JSON: {"whyThisCandidate":"...","strengthHighlights":[],"concerns":[],"confidenceScore":0.0-1.0}', `Resume:\n${resumeText.slice(0, 3000)}\nJob:\n${jobText.slice(0, 2000)}\nMatched: ${matchedSkills.join(', ')}\nMissing: ${missingSkills.join(', ')}`);
+    }
+    async extractLinkedInProfile(text) {
+        const result = await this.chatJSON('Extract LinkedIn profile data. Return JSON: {"fullName":null,"headline":null,"summary":null,"skills":[],"experience":[],"education":[],"certifications":[]}', text.slice(0, 8000));
+        return {
+            fullName: result.fullName || undefined,
+            headline: result.headline || undefined,
+            summary: result.summary || undefined,
+            skills: Array.isArray(result.skills) ? result.skills : [],
+            experience: Array.isArray(result.experience) ? result.experience : [],
+            education: Array.isArray(result.education) ? result.education : [],
+            certifications: Array.isArray(result.certifications) ? result.certifications : [],
+        };
+    }
 }
 exports.LMStudioProvider = LMStudioProvider;
 function cosineSimilarity(a, b) {
@@ -117,27 +123,22 @@ function cosineSimilarity(a, b) {
 }
 function cleanAndParseJSON(text) {
     let cleaned = text.trim();
-    // Remove markdown code blocks if present
     if (cleaned.startsWith('```')) {
         const firstNewline = cleaned.indexOf('\n');
-        if (firstNewline !== -1) {
+        if (firstNewline !== -1)
             cleaned = cleaned.slice(firstNewline).trim();
-        }
-        if (cleaned.endsWith('```')) {
+        if (cleaned.endsWith('```'))
             cleaned = cleaned.slice(0, cleaned.length - 3).trim();
-        }
     }
     try {
         return JSON.parse(cleaned);
     }
     catch (e) {
-        // If standard parsing fails, try a manual regex/substring recovery for unescaped inner quotes
         try {
             const scoreMatch = cleaned.match(/"score"\s*:\s*(\d+)/);
             const score = scoreMatch ? parseInt(scoreMatch[1], 10) : 0;
             const reasonKeyIndex = cleaned.search(/"reason"\s*:\s*"/);
             if (reasonKeyIndex !== -1) {
-                // Find opening quote of reason
                 const valueStartIndex = cleaned.indexOf('"', reasonKeyIndex + 8) + 1;
                 const lastBraceIndex = cleaned.lastIndexOf('}');
                 if (lastBraceIndex !== -1) {
@@ -149,17 +150,16 @@ function cleanAndParseJSON(text) {
                 }
             }
         }
-        catch (innerError) {
+        catch {
             // Fall through
         }
-        // Fallback: search for first '{' and last '}'
         const start = cleaned.indexOf('{');
         const end = cleaned.lastIndexOf('}');
         if (start !== -1 && end !== -1 && end > start) {
             try {
                 return JSON.parse(cleaned.slice(start, end + 1));
             }
-            catch (innerError) {
+            catch {
                 // Fall through
             }
         }

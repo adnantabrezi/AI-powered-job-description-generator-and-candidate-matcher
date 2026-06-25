@@ -21,8 +21,13 @@ export default function RegisterPage() {
         await authApi.registerEmployer(companyName, email, password);
       }
       navigate('/login');
-    } catch {
-      setError('Registration failed. Check your details.');
+    } catch (err: any) {
+      const msg = err.response?.data?.error || 'Registration failed. Check your details.';
+      if (err.response?.data?.details) {
+        setError(`${msg}: ${err.response.data.details[0]?.message}`);
+      } else {
+        setError(msg);
+      }
     }
   };
 

@@ -1,8 +1,10 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16
     container_name: jobboard-postgres
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_password}
@@ -12,47 +14,10 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres -d jobboard']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-jobboard}']
       interval: 5s
       timeout: 5s
       retries: 10
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: jobboard-backend
-    restart: unless-stopped
-    ports:
-      - '3000:3000'
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres_password@postgres:5432/jobboard?schema=public
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-in-production}
-      AI_PROVIDER: ${AI_PROVIDER:-openai}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
-      SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL:-noreply@jobboard.local}
-      CORS_ORIGIN: http://localhost:5173
-      FRONTEND_URL: http://localhost:5173
-    volumes:
-      - ./backend/uploads:/app/uploads
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: jobboard-frontend
-    restart: unless-stopped
-    ports:
-      - '5173:5173'
-    environment:
-      VITE_API_URL: http://localhost:3000/api
-    depends_on:
-      - backend
 
 volumes:
   postgres_data:

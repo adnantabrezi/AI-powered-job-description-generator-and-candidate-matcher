@@ -8,6 +8,10 @@ export class JobMatchRepository {
     matchedSkills: string[];
     missingSkills: string[];
     reason?: string;
+    whyThisCandidate?: string;
+    strengthHighlights?: string[];
+    concerns?: string[];
+    confidenceScore?: number;
   }) {
     return prisma.candidateJobMatch.upsert({
       where: {

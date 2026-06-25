@@ -28,3 +28,5 @@ export const createRateLimiter = (maxRequests: number, windowMs: number) => {
 };
 
 export const authRateLimiter = createRateLimiter(10, 15 * 60 * 1000);
+
+// Rate limits cleared by restart

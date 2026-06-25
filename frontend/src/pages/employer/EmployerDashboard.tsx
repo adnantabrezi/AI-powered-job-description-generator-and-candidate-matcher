@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi, jobsApi, applicationsApi } from '../../services/api';
+import JobCreatorWizard from '../../components/employer/JobCreatorWizard';
+import CandidateCard from '../../components/employer/CandidateCard';
+import InterviewQuestions from '../../components/employer/InterviewQuestions';
+import ExportModal from '../../components/employer/ExportModal';
+import PipelineManager from '../../components/employer/PipelineManager';
+
+type Tab = 'jobs' | 'candidates' | 'pipelines';
 
 export default function EmployerDashboard() {
   const { data, isLoading, error, refetch } = useQuery({
@@ -8,17 +15,10 @@ export default function EmployerDashboard() {
     queryFn: async () => (await dashboardApi.employer()).data,
   });
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [location, setLocation] = useState('');
-  const [employmentType, setEmploymentType] = useState('Full-time');
-  const [salaryMin, setSalaryMin] = useState('');
-  const [salaryMax, setSalaryMax] = useState('');
-  const [remoteStatus, setRemoteStatus] = useState(false);
-  const [requiredExperience, setRequiredExperience] = useState('');
-  const [formError, setFormError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('jobs');
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [exportJob, setExportJob] = useState<{ id: string; title: string } | null>(null);
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [updatingAppId, setUpdatingAppId] = useState<string | null>(null);
 
@@ -31,40 +31,6 @@ export default function EmployerDashboard() {
       console.error('Failed to update application status:', err);
     } finally {
       setUpdatingAppId(null);
-    }
-  };
-
-  const handleCreateJob = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError('');
-    setIsSubmitting(true);
-
-    try {
-      await jobsApi.create({
-        title,
-        description,
-        location,
-        employmentType,
-        salaryMin: salaryMin ? Number(salaryMin) : undefined,
-        salaryMax: salaryMax ? Number(salaryMax) : undefined,
-        remoteStatus,
-        requiredExperience: requiredExperience ? Number(requiredExperience) : undefined,
-      });
-
-      setTitle('');
-      setDescription('');
-      setLocation('');
-      setEmploymentType('Full-time');
-      setSalaryMin('');
-      setSalaryMax('');
-      setRemoteStatus(false);
-      setRequiredExperience('');
-      setIsModalOpen(false);
-      refetch();
-    } catch (err: any) {
-      setFormError(err.response?.data?.error || 'Failed to create job.');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -83,215 +49,186 @@ export default function EmployerDashboard() {
 
   const statusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      PUBLISHED: 'bg-emerald-500/15 text-emerald-400',
-      DRAFT: 'bg-amber-500/15 text-amber-400',
-      ARCHIVED: 'bg-slate-500/15 text-slate-400',
+      PUBLISHED: 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400',
+      DRAFT: 'bg-amber-500/10 border border-amber-500/20 text-amber-400',
+      ARCHIVED: 'bg-slate-800 border border-slate-700 text-slate-400',
     };
     return (
-      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${colors[status] ?? colors.DRAFT}`}>
+      <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${colors[status] ?? colors.DRAFT}`}>
         {status}
       </span>
     );
   };
 
-  if (isLoading) return <p className="text-slate-400">Loading dashboard...</p>;
-  if (error) return <p className="text-red-400">Unable to load employer dashboard.</p>;
+  if (isLoading) return (
+    <div className="flex flex-col items-center justify-center py-24 space-y-3">
+      <div className="h-8 w-8 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin" />
+      <p className="text-slate-400 text-sm">Loading employer dashboard...</p>
+    </div>
+  );
+  if (error) return <p className="text-rose-400 bg-rose-500/10 p-4 rounded-xl">Unable to load employer dashboard.</p>;
+
+  const tabs: { key: Tab; label: string; icon: string }[] = [
+    { key: 'jobs', label: 'Jobs', icon: '💼' },
+    { key: 'candidates', label: 'AI Rankings', icon: '✨' },
+    { key: 'pipelines', label: 'Pipelines', icon: '🔄' },
+  ];
 
   return (
-    <div className="space-y-8 relative">
+    <div className="space-y-8 py-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-slate-100">Employer Dashboard</h1>
+        <div className="space-y-1">
+          <h1 className="text-4xl font-extrabold tracking-tight text-slate-100">Employer Dashboard</h1>
+          <p className="text-sm text-slate-400">Manage job postings, candidates, and AI talent pipelines</p>
+        </div>
         <button
-          onClick={() => setIsModalOpen(true)}
-          className="rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950 hover:bg-emerald-400 transition-colors shadow-lg"
+          onClick={() => setIsWizardOpen(true)}
+          className="btn-premium-violet flex items-center gap-2 text-sm"
         >
-          Post a Job
+          ✨ AI Job Creator
         </button>
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 className="text-xl font-bold text-slate-100">Post a New Job</h2>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-200 text-lg"
-              >
-                ✕
+      {/* Stats bar */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="premium-card rounded-2xl p-5 text-center">
+          <p className="text-3xl font-extrabold text-violet-400">{(data?.activeJobs ?? []).length}</p>
+          <p className="text-xs uppercase tracking-wider text-slate-500 font-bold mt-1.5">Active Jobs</p>
+        </div>
+        <div className="premium-card rounded-2xl p-5 text-center">
+          <p className="text-3xl font-extrabold text-pink-400">{(data?.applicants ?? []).length}</p>
+          <p className="text-xs uppercase tracking-wider text-slate-500 font-bold mt-1.5">Applicants</p>
+        </div>
+        <div className="premium-card rounded-2xl p-5 text-center">
+          <p className="text-3xl font-extrabold text-cyan-400">
+            {(data?.hiringAnalytics ?? []).find((a: any) => a.status === 'SHORTLISTED')?._count?.status || 0}
+          </p>
+          <p className="text-xs uppercase tracking-wider text-slate-500 font-bold mt-1.5">Shortlisted</p>
+        </div>
+        <div className="premium-card rounded-2xl p-5 text-center">
+          <p className="text-3xl font-extrabold text-emerald-400">
+            {(data?.hiringAnalytics ?? []).find((a: any) => a.status === 'HIRED')?._count?.status || 0}
+          </p>
+          <p className="text-xs uppercase tracking-wider text-slate-500 font-bold mt-1.5">Hired</p>
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-2 border-b border-slate-800/80 pb-px">
+        {tabs.map((tab) => (
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+            className={`px-5 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px flex items-center gap-2 ${
+              activeTab === tab.key
+                ? 'border-violet-500 text-violet-400 bg-violet-500/5 rounded-t-xl'
+                : 'border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-800'
+            }`}>
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Jobs tab */}
+      {activeTab === 'jobs' && (
+        <section className="space-y-4">
+          {(data?.activeJobs ?? []).length === 0 ? (
+            <div className="text-center py-16 border border-dashed border-slate-800 bg-[#090b14]/15 rounded-2xl space-y-4">
+              <p className="text-5xl">✨</p>
+              <p className="text-slate-400 text-sm">No job postings created yet.</p>
+              <button onClick={() => setIsWizardOpen(true)}
+                className="btn-premium-violet text-sm">
+                Create First AI Job Posting
               </button>
             </div>
+          ) : (
+            (data?.activeJobs ?? []).map((job: any) => (
+              <div key={job.id} className="premium-card rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-3">
+                      <p className="font-bold text-slate-100 text-lg tracking-tight">{job.title}</p>
+                      {statusBadge(job.status)}
+                    </div>
+                    <p className="text-xs text-slate-400 font-medium">{job._count.applications} applicants</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setExportJob({ id: job.id, title: job.title })}
+                      className="btn-premium-outline px-3 py-1.5 text-xs">
+                      📤 Export
+                    </button>
+                    <button
+                      onClick={() => setExpandedJobId(expandedJobId === job.id ? null : job.id)}
+                      className="rounded-xl bg-purple-500/10 border border-purple-500/20 px-3.5 py-1.5 text-xs font-semibold text-purple-400 hover:bg-purple-500/20 transition-all hover:-translate-y-0.5">
+                      📋 Interview Q's
+                    </button>
+                    <button
+                      onClick={() => handleToggleStatus(job.id, job.status)}
+                      disabled={togglingId === job.id}
+                      className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all hover:-translate-y-0.5 disabled:opacity-50 ${
+                        job.status === 'PUBLISHED'
+                          ? 'bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20'
+                          : 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20'
+                      }`}>
+                      {togglingId === job.id ? '...' : job.status === 'PUBLISHED' ? 'Archive' : 'Publish'}
+                    </button>
+                  </div>
+                </div>
 
-            {formError && <p className="text-sm text-rose-400 bg-rose-500/10 p-2.5 rounded-lg">{formError}</p>}
-
-            <form onSubmit={handleCreateJob} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Job Title *</label>
-                <input type="text" required placeholder="e.g. Senior Frontend Developer" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+                {/* Expandable interview questions */}
+                {expandedJobId === job.id && (
+                  <div className="border-t border-slate-800/80 pt-4 mt-2">
+                    <InterviewQuestions jobId={job.id} jobTitle={job.title} />
+                  </div>
+                )}
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Description *</label>
-                <textarea required rows={4} placeholder="Describe the role..." value={description} onChange={(e) => setDescription(e.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Location *</label>
-                  <input type="text" required placeholder="e.g. San Francisco, CA" value={location} onChange={(e) => setLocation(e.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Employment Type</label>
-                  <select value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 text-slate-300">
-                    <option value="Full-time">Full-time</option>
-                    <option value="Part-time">Part-time</option>
-                    <option value="Contract">Contract</option>
-                    <option value="Internship">Internship</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Min Salary</label>
-                  <input type="number" placeholder="Min salary" value={salaryMin} onChange={(e) => setSalaryMin(e.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Max Salary</label>
-                  <input type="number" placeholder="Max salary" value={salaryMax} onChange={(e) => setSalaryMax(e.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Required Experience (Years)</label>
-                <input type="number" placeholder="e.g. 3" value={requiredExperience} onChange={(e) => setRequiredExperience(e.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="remoteStatus" checked={remoteStatus} onChange={(e) => setRemoteStatus(e.target.checked)} className="h-4 w-4 rounded border-slate-700 bg-slate-950 accent-emerald-500" />
-                <label htmlFor="remoteStatus" className="text-sm font-medium text-slate-300 select-none">This is a Remote Position</label>
-              </div>
-              <div className="flex justify-end gap-3 border-t border-slate-800 pt-4">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:border-slate-500 transition-colors">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 transition-colors disabled:opacity-50">
-                  {isSubmitting ? 'Posting...' : 'Create Job'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+            ))
+          )}
+        </section>
       )}
 
-      {/* Jobs Section */}
-      <section>
-        <h2 className="mb-3 text-xl font-semibold">Your Jobs</h2>
-        {(data?.activeJobs ?? []).length === 0 ? (
-          <p className="text-sm text-slate-500">No jobs posted yet. Click "Post a Job" to get started!</p>
-        ) : (
-          <div className="grid gap-3">
-            {(data?.activeJobs ?? []).map((job: {
-              id: string;
-              title: string;
-              status: string;
-              _count: { applications: number };
-            }) => (
-              <div key={job.id} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900 p-4 hover:border-slate-700 transition-colors">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium">{job.title}</p>
-                    {statusBadge(job.status)}
-                  </div>
-                  <p className="text-sm text-slate-400">{job._count.applications} applicants</p>
-                </div>
-                <button
-                  onClick={() => handleToggleStatus(job.id, job.status)}
-                  disabled={togglingId === job.id}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
-                    job.status === 'PUBLISHED'
-                      ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
-                      : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
-                  }`}
-                >
-                  {togglingId === job.id ? '...' : job.status === 'PUBLISHED' ? 'Archive' : 'Publish'}
-                </button>
-              </div>
-            ))}
+      {/* Candidates tab */}
+      {activeTab === 'candidates' && (
+        <section className="space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-xl font-bold text-slate-100">AI-Ranked Candidates</h2>
+            <p className="text-xs text-slate-400">Applications ranked contextually against posted job specifications</p>
           </div>
-        )}
-      </section>
+          {(data?.aiRankings ?? []).length === 0 ? (
+            <div className="text-center py-16 border border-dashed border-slate-800 bg-[#090b14]/15 rounded-2xl">
+              <p className="text-slate-400 text-sm">No applicants yet. Rankings will appear once candidates apply.</p>
+            </div>
+          ) : (
+            (data?.aiRankings ?? []).map((app: any) => (
+              <CandidateCard
+                key={app.id}
+                application={app}
+                onStatusUpdate={handleUpdateApplicationStatus}
+                isUpdating={updatingAppId !== null}
+              />
+            ))
+          )}
+        </section>
+      )}
 
-      {/* AI Rankings Section */}
-      <section>
-        <h2 className="mb-3 text-xl font-semibold">AI Rankings</h2>
-        {(data?.aiRankings ?? []).length === 0 ? (
-          <p className="text-sm text-slate-500">No applicants yet. Rankings will appear once candidates apply to your jobs.</p>
-        ) : (
-          <div className="grid gap-3">
-            {(data?.aiRankings ?? []).map((app: {
-              id: string;
-              matchScore: number | null;
-              status: string;
-              candidate: {
-                userId: string;
-                user: {
-                  email: string;
-                  resumeFile?: { id: string } | null;
-                };
-              };
-              job: { title: string };
-            }) => (
-              <div key={app.id} className="flex items-center justify-between gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-slate-200">{app.candidate.user.email}</p>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      app.status === 'SHORTLISTED'
-                        ? 'bg-emerald-500/15 text-emerald-400'
-                        : app.status === 'REJECTED'
-                        ? 'bg-rose-500/15 text-rose-400'
-                        : 'bg-slate-500/15 text-slate-400'
-                    }`}>
-                      {app.status}
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-400">
-                    {app.job.title} · Match Score: <span className="font-semibold text-emerald-400">{app.matchScore !== null ? `${app.matchScore}%` : 'N/A'}</span>
-                  </p>
-                </div>
+      {/* Pipelines tab */}
+      {activeTab === 'pipelines' && <PipelineManager />}
 
-                <div className="flex items-center gap-3">
-                  {app.candidate.user.resumeFile ? (
-                    <a
-                      href={`http://localhost:3000/api/resumes/${app.candidate.userId}/download?token=${localStorage.getItem('accessToken')}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-slate-100 hover:border-slate-600 transition-colors"
-                    >
-                      View Resume
-                    </a>
-                  ) : (
-                    <span className="text-xs text-slate-500 italic">No resume</span>
-                  )}
+      {/* Modals */}
+      {isWizardOpen && (
+        <JobCreatorWizard
+          onJobCreated={refetch}
+          onClose={() => setIsWizardOpen(false)}
+        />
+      )}
 
-                  {app.status === 'APPLIED' && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleUpdateApplicationStatus(app.id, 'SHORTLISTED')}
-                        disabled={updatingAppId !== null}
-                        className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-emerald-400 transition-colors disabled:opacity-50"
-                      >
-                        Shortlist
-                      </button>
-                      <button
-                        onClick={() => handleUpdateApplicationStatus(app.id, 'REJECTED')}
-                        disabled={updatingAppId !== null}
-                        className="rounded-lg bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 text-xs font-bold text-rose-400 hover:bg-rose-500/20 transition-colors disabled:opacity-50"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      {exportJob && (
+        <ExportModal
+          jobId={exportJob.id}
+          jobTitle={exportJob.title}
+          onClose={() => setExportJob(null)}
+        />
+      )}
     </div>
   );
 }

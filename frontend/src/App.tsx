@@ -20,33 +20,33 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col pb-10">
-      <nav className="sticky top-0 z-50 border-b border-slate-900/60 bg-slate-950/70 backdrop-blur-md">
+      <nav className="sticky top-0 z-50 border-b border-slate-900/40 bg-[#03050c]/60 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link to="/" className="flex items-center gap-2 text-xl font-bold tracking-tight text-emerald-400 hover:text-emerald-300 transition-colors">
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-sm">⚡</span>
-            <span>AI Job Board</span>
+          <Link to="/" className="flex items-center gap-2 text-xl font-bold tracking-tight text-violet-400 hover:text-violet-300 transition-colors">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-violet-500/10 text-violet-400 border border-violet-500/30 text-sm">⚡</span>
+            <span>Aura</span>
           </Link>
           <div className="flex gap-6 items-center text-sm font-semibold">
-            <Link to="/jobs" className="text-slate-300 hover:text-emerald-400 transition-colors">Find Jobs</Link>
+            <Link to="/jobs" className="text-slate-300 hover:text-violet-400 transition-colors">Find Jobs</Link>
             {token ? (
               <>
                 {userRole === 'CANDIDATE' && (
-                  <Link to="/dashboard/candidate" className="text-slate-300 hover:text-emerald-400 transition-colors">Dashboard</Link>
+                  <Link to="/dashboard/candidate" className="text-slate-300 hover:text-violet-400 transition-colors">Dashboard</Link>
                 )}
                 {userRole === 'EMPLOYER' && (
-                  <Link to="/dashboard/employer" className="text-slate-300 hover:text-emerald-400 transition-colors">Dashboard</Link>
+                  <Link to="/dashboard/employer" className="text-slate-300 hover:text-violet-400 transition-colors">Dashboard</Link>
                 )}
                 <button
                   onClick={handleLogout}
-                  className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-3.5 py-1.5 text-xs font-bold text-rose-400 hover:bg-rose-500/20 transition-all"
+                  className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-3.5 py-1.5 text-xs font-bold text-rose-400 hover:bg-rose-500/20 transition-all hover:border-rose-500/40"
                 >
                   Logout
                 </button>
               </>
             ) : (
               <>
-                <Link to="/login" className="text-slate-300 hover:text-emerald-400 transition-colors">Login</Link>
-                <Link to="/register" className="premium-glow rounded-xl bg-emerald-500 px-4 py-2 font-bold text-slate-950 hover:bg-emerald-400 transition-all text-xs">
+                <Link to="/login" className="text-slate-300 hover:text-violet-400 transition-colors">Login</Link>
+                <Link to="/register" className="rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-2 font-bold text-slate-100 shadow-[0_0_15px_rgba(139,92,246,0.2)] hover:shadow-[0_0_25px_rgba(139,92,246,0.45)] hover:from-violet-500 hover:to-fuchsia-500 transition-all hover:-translate-y-0.5 active:translate-y-0 text-xs">
                   Register
                 </Link>
               </>

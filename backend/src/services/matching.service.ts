@@ -24,22 +24,23 @@ export class MatchingService {
     const matchedSkills = jobSkills.filter((s) => candidateSkills.includes(s));
     const missingSkills = jobSkills.filter((s) => !candidateSkills.includes(s));
 
+    // Weighted scoring: Skills(25) + Exp(15) + Embedding(15) + Keywords(10) + AI(25) + Culture(10)
     const skillScore =
-      jobSkills.length > 0 ? (matchedSkills.length / jobSkills.length) * 30 : 15;
+      jobSkills.length > 0 ? (matchedSkills.length / jobSkills.length) * 25 : 12.5;
 
-    let expScore = 20;
+    let expScore = 15;
     if (job.requiredExperience) {
       expScore =
         candidate.experienceYears >= job.requiredExperience
-          ? 20
-          : Math.max(0, (candidate.experienceYears / job.requiredExperience) * 20);
+          ? 15
+          : Math.max(0, (candidate.experienceYears / job.requiredExperience) * 15);
     }
 
     let embeddingScore = 0;
     const resumeEmbedding = candidate.user?.resumeFile?.embedding as unknown as number[] | null;
     const jobEmbedding = job.embedding as unknown as number[] | null;
     if (resumeEmbedding && jobEmbedding && Array.isArray(resumeEmbedding) && Array.isArray(jobEmbedding)) {
-      embeddingScore = cosineSimilarity(resumeEmbedding, jobEmbedding) * 20;
+      embeddingScore = cosineSimilarity(resumeEmbedding, jobEmbedding) * 15;
     }
 
     let keywordScore = 0;
@@ -50,29 +51,57 @@ export class MatchingService {
 
     let aiScore = 0;
     let aiReason = 'No AI analysis available';
+    let whyThisCandidate: string | undefined;
+    let strengthHighlights: string[] = [];
+    let concerns: string[] = [];
+    let confidenceScore: number | undefined;
 
     if (candidate.user?.resumeFile?.rawText && job.description) {
       try {
+        // Deep AI analysis
         const aiAnalysis = await aiProvider.matchCandidateToJob(
           candidate.user.resumeFile.rawText,
           job.description,
         );
-        aiScore = (aiAnalysis.score / 100) * 20;
+        aiScore = (aiAnalysis.score / 100) * 25;
         aiReason = aiAnalysis.reason;
+
+        // Generate "Why this candidate" summary
+        try {
+          const summary = await aiProvider.generateCandidateSummary(
+            candidate.user.resumeFile.rawText,
+            job.description,
+            matchedSkills,
+            missingSkills,
+          );
+          whyThisCandidate = summary.whyThisCandidate;
+          strengthHighlights = summary.strengthHighlights;
+          concerns = summary.concerns;
+          confidenceScore = summary.confidenceScore;
+        } catch {
+          // Summary generation is non-critical
+        }
       } catch {
         aiReason = 'AI analysis unavailable';
       }
     }
 
+    // Culture fit score (10%)
+    let cultureScore = 5; // Default mid-range
+    if (candidate.user?.resumeFile?.rawText && (job as any).companyCulture) {
+      // Simple keyword overlap for culture
+      const cultureWords = ((job as any).companyCulture as string).toLowerCase().split(/\s+/);
+      const cultureMatch = cultureWords.filter((w) => resumeText.includes(w)).length;
+      cultureScore = Math.min(10, (cultureMatch / Math.max(cultureWords.length, 1)) * 10);
+    }
+
     const finalScore = Math.min(
       100,
-      Math.round((skillScore + expScore + embeddingScore + keywordScore + aiScore) * 100) / 100,
+      Math.round((skillScore + expScore + embeddingScore + keywordScore + aiScore + cultureScore) * 100) / 100,
     );
 
     const existingMatch = await prisma.candidateJobMatch.findUnique({
-      where: {
-        jobId_candidateId: { jobId, candidateId },
-      },
+      where: { jobId_candidateId: { jobId, candidateId } },
     });
 
     const isNewRecommendation = (!existingMatch || existingMatch.matchScore < 40) && finalScore >= 40;
@@ -92,6 +121,10 @@ export class MatchingService {
       matchedSkills,
       missingSkills,
       reason: aiReason,
+      whyThisCandidate,
+      strengthHighlights,
+      concerns,
+      confidenceScore,
     });
   }
 

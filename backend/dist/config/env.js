@@ -12,7 +12,7 @@ exports.ENV = {
     DATABASE_URL: process.env.DATABASE_URL,
     JWT_SECRET: process.env.JWT_SECRET || 'super-secret-key-for-dev-only',
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'super-secret-refresh-key-for-dev-only',
-    ACCESS_TOKEN_EXPIRES_IN: '15m',
+    ACCESS_TOKEN_EXPIRES_IN: '24h',
     REFRESH_TOKEN_EXPIRES_IN: '30d',
     BCRYPT_SALT_ROUNDS: 12,
     AI_PROVIDER: process.env.AI_PROVIDER || 'openai',
@@ -21,6 +21,8 @@ exports.ENV = {
     AI_MODEL: process.env.AI_MODEL || 'local-model',
     AI_EMBEDDING_MODEL: process.env.AI_EMBEDDING_MODEL || 'local-model',
     OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+    CLAUDE_API_KEY: process.env.CLAUDE_API_KEY || '',
+    CLAUDE_MODEL: process.env.CLAUDE_MODEL || 'claude-3-5-sonnet-20240620',
     SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || '',
     SENDGRID_FROM_EMAIL: process.env.SENDGRID_FROM_EMAIL || 'noreply@jobboard.local',
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
@@ -35,3 +37,4 @@ const validateEnv = () => {
     });
 };
 exports.validateEnv = validateEnv;
+// Triggering restart to load qwen2.5:3b
